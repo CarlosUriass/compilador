@@ -1,5 +1,9 @@
-from .palabras_reservadas import PALABRAS_RESERVADAS
+from .palabras_reservadas import PalabraReservada
+from .tipos_token import TipoToken
+from .operators import Operador
 
 __all__ = [
-    "PALABRAS_RESERVADAS",
+    "PalabraReservada",
+    "TipoToken",
+    "Operador",
 ]
