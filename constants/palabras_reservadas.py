@@ -1,0 +1,16 @@
+PALABRAS_RESERVADAS = [
+    "Inicio",
+    "Final",
+    "Si",
+    "Entonces",
+    "Sino",
+    "Hacer",
+    "Mientras",
+    "Entero",
+    "Decimal",
+    "Expresion",
+    "Binario",
+    "Borrar",
+    "Mostrar",
+    "Capturar",
+]
