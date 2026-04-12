@@ -21,7 +21,7 @@ def clasificar_token(lexema: str) -> TipoToken:
 
 
 def clasificar_operador(op_str: str) -> TipoToken:
-    """Clasifica un operador en su categoría correspondiente (Aritmético, Relacional, etc)"""
+    """Clasifica un operador en su categoría correspondiente"""
     if op_str in ("+", "-", "*", "/", "**"):
         return TipoToken.OP_ARITMETICO
     elif op_str in ("<", ">", "<=", ">=", "==", "!="):
@@ -35,9 +35,9 @@ def clasificar_operador(op_str: str) -> TipoToken:
 
 def analizar_archivo(archivo: str) -> ListaEnlazadaDobleCircular:
     """
-    Lee un archivo preprocesado carácter por carácter,
-    agrupa los lexemas, los clasifica y los almacena en una
-    ListaEnlazadaDobleCircular de tuplas (TipoToken, lexema).
+    Lee un archivo preprocesado carácter por carácter, agrupa los lexemas,
+    los clasifica y los almacena en una ListaEnlazadaDobleCircular de tuplas
+    (TipoToken, lexema, linea, columna).
     Retorna la lista con todos los tokens encontrados.
     """
     lista_tokens = ListaEnlazadaDobleCircular()
@@ -51,19 +51,30 @@ def analizar_archivo(archivo: str) -> ListaEnlazadaDobleCircular:
     with open(archivo, 'r', encoding='utf-8') as f:
         contenido = f.read()
 
-    def registrar(tipo: TipoToken, lexema: str):
+    def registrar(tipo: TipoToken, lexema: str, linea: int, columna: int):
         """Imprime el token y lo inserta al final de la lista enlazada."""
         print(f"[{tipo.value}] -> {lexema}")
-        lista_tokens.insertar_final((tipo, lexema))
+        lista_tokens.insertar_final((tipo, lexema, linea, columna))
+
+    # Rastreo de posición
+    linea = 1
+    ultima_newline = -1  # índice del último '\n' visto (-1 = antes del inicio)
 
     i = 0
     while i < len(contenido):
         c = contenido[i]
 
-        # 1. Ignorar espacios en blanco
+        # 1. Ignorar espacios en blanco (rastrear saltos de línea)
         if c.isspace():
+            if c == '\n':
+                linea += 1
+                ultima_newline = i
             i += 1
             continue
+
+        # Capturar posición del primer carácter del token actual
+        tok_lin = linea
+        tok_col = i - ultima_newline   # columna 1-indexada
 
         # 2. Cadenas de texto
         if c == '"':
@@ -73,83 +84,72 @@ def analizar_archivo(archivo: str) -> ListaEnlazadaDobleCircular:
                 buffer += contenido[i]
                 i += 1
             if i < len(contenido):
-                buffer += contenido[i]  # Agregar la comilla de cierre
+                buffer += contenido[i]
                 i += 1
-            registrar(TipoToken.CADENA, buffer)
+            registrar(TipoToken.CADENA, buffer, tok_lin, tok_col)
             continue
 
         # 3. Símbolos de Agrupación y Puntuación
         if c in '({[':
-            registrar(TipoToken.SIMBOLO_APERTURA, c)
+            registrar(TipoToken.SIMBOLO_APERTURA, c, tok_lin, tok_col)
             i += 1
             continue
         if c in ')}]':
-            registrar(TipoToken.SIMBOLO_CIERRE, c)
+            registrar(TipoToken.SIMBOLO_CIERRE, c, tok_lin, tok_col)
             i += 1
             continue
-        # El '.' puede ser puntuación O inicio de un número real (ej. .50)
+        # El '.' puede ser puntuación O inicio de número real (.50)
         if c == '.':
             if i + 1 < len(contenido) and contenido[i + 1].isdigit():
-                # Tratar como inicio de número real: acumular ".digits"
                 buffer = "."
                 i += 1
                 while i < len(contenido) and contenido[i].isdigit():
                     buffer += contenido[i]
                     i += 1
-                registrar(clasificar_token(buffer), buffer)
+                registrar(clasificar_token(buffer), buffer, tok_lin, tok_col)
                 continue
-            registrar(TipoToken.SIMBOLO_PUNTUACION, c)
+            registrar(TipoToken.SIMBOLO_PUNTUACION, c, tok_lin, tok_col)
             i += 1
             continue
         if c in ';,:':
-            registrar(TipoToken.SIMBOLO_PUNTUACION, c)
+            registrar(TipoToken.SIMBOLO_PUNTUACION, c, tok_lin, tok_col)
             i += 1
             continue
 
-        # 4. Operadores (pueden ser de 1 o 2 caracteres)
+        # 4. Operadores (1 o 2 caracteres)
         if c in '+-*/<>=!&|':
             op_str = c
-
-            # Verificar si el siguiente caracter forma un operador compuesto (ej. >=, ==, **)
             if i + 1 < len(contenido):
                 c_next = contenido[i + 1]
                 op_doble = c + c_next
                 es_valido = any(op_doble == op.value for op in Operador) or op_doble == "="
-
                 if op_doble in ("==", "!=", "<=", ">=", "**"):
                     es_valido = True
-
                 if es_valido:
                     op_str = op_doble
                     i += 1
-
-            registrar(clasificar_operador(op_str), op_str)
+            registrar(clasificar_operador(op_str), op_str, tok_lin, tok_col)
             i += 1
             continue
 
         # 5. Palabras Reservadas, IDs, Números
         if c.isalnum() or c == '_':
             buffer = ""
-
-            # Repetir lectura hasta encontrar un delimitador
             while i < len(contenido):
                 cc = contenido[i]
                 if cc.isspace() or cc in '({[ ]});,.:\"' + '+-*/<>=!&|':
-                    # Permitir puntos solo si estamos ante un número real (ej. 3.14)
                     if cc == '.' and buffer.isdigit() and (i + 1 < len(contenido) and contenido[i + 1].isdigit()):
                         buffer += cc
                         i += 1
                         continue
-                    break  # Salir si encontramos el delimitador real
-
+                    break
                 buffer += cc
                 i += 1
-
-            registrar(clasificar_token(buffer), buffer)
+            registrar(clasificar_token(buffer), buffer, tok_lin, tok_col)
             continue
 
-        # 6. Cualquier otro carácter no reconocido será tratado como error
-        registrar(TipoToken.ERROR, c)
+        # 6. Carácter no reconocido → ERROR
+        registrar(TipoToken.ERROR, c, tok_lin, tok_col)
         i += 1
 
     print("Análisis léxico finalizado.")

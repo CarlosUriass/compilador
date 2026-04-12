@@ -1,5 +1,6 @@
 from utils.utils import PreprocesarArchivo
 from analizador_lexico import analizar_archivo
+from analizador_sintactico import analizar_sintaxis, ErrorSintactico
 from structs.lista_enlazada import ListaEnlazadaDobleCircular
 import sys
 import os
@@ -39,8 +40,8 @@ def analizar_lexico(archivo_limpio: str) -> ListaEnlazadaDobleCircular:
 
     print(f"\n[Resumen] {len(lista_tokens)} token(s) almacenados en la lista enlazada.")
     print("[Lista de tokens (en orden)]:")
-    for tipo, lexema in lista_tokens.mostrar_adelante():
-        print(f"  ({tipo.value}, '{lexema}')")
+    for tipo, lexema, linea, columna in lista_tokens.mostrar_adelante():
+        print(f"  [{linea}:{columna}] ({tipo.value}, '{lexema}')")
 
     return lista_tokens
 
@@ -52,18 +53,35 @@ def limpiar_temporales():
         print("\n[*] Archivos temporales eliminados.")
 
 
+def analizar_sintactico(lista_tokens: ListaEnlazadaDobleCircular):
+    """
+    Ejecuta el análisis sintáctico sobre la lista de tokens.
+    Retorna el NodoPrograma raíz del AST.
+    """
+    print("\n[Etapa 3] Análisis Sintáctico")
+    try:
+        programa = analizar_sintaxis(lista_tokens)
+        print(f"  {len(programa.sentencias)} sentencia(s) reconocidas en el AST.")
+        print(f"  [AST]:\n{programa}")
+        return programa
+    except ErrorSintactico as e:
+        print(f"  [Error Sintáctico] {e}")
+        sys.exit(1)
+
+
 def main():
     """
     Punto de entrada principal del compilador.
-    Orquesta las etapas: preprocesamiento → análisis léxico.
+    Orquesta las etapas: preprocesamiento → análisis léxico → análisis sintáctico.
     """
-    parser = argparse.ArgumentParser(description='Mini Compilador - Analizador Léxico')
+    parser = argparse.ArgumentParser(description='Mini Compilador')
     parser.add_argument('archivo', nargs='?', default='prueba.txt',
                         help='Ruta al archivo de código fuente a analizar')
     args = parser.parse_args()
 
     archivo_limpio = preprocesar(args.archivo)
-    analizar_lexico(archivo_limpio)
+    lista_tokens   = analizar_lexico(archivo_limpio)
+    analizar_sintactico(lista_tokens)
     limpiar_temporales()
 
 

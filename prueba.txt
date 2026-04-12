@@ -1,2 +1,8 @@
-<=<
-
+Inicio
+Entero suma = 0;
+Entero i = 1;
+Mientras i <= 10 Hacer
+    suma = suma + i;
+    i = i + 1;
+Mostrar suma;
+Final
