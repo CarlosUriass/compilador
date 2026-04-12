@@ -3,7 +3,9 @@ from constants.operators import Operador
 from automatas.numeros import validar_numero, validar_numero_real
 from automatas.ids import validar_id
 from automatas.palabras_reservadas import validar_palabra_reservada
+from structs.lista_enlazada import ListaEnlazadaDobleCircular
 import os
+
 
 def clasificar_token(lexema: str) -> TipoToken:
     """Clasifica un lexema alfanumérico en Palabra Reservada, ID o Número"""
@@ -17,6 +19,7 @@ def clasificar_token(lexema: str) -> TipoToken:
         return TipoToken.ID
     return TipoToken.ERROR
 
+
 def clasificar_operador(op_str: str) -> TipoToken:
     """Clasifica un operador en su categoría correspondiente (Aritmético, Relacional, etc)"""
     if op_str in ("+", "-", "*", "/", "**"):
@@ -29,19 +32,29 @@ def clasificar_operador(op_str: str) -> TipoToken:
         return TipoToken.OP_ASIGNACION
     return TipoToken.ERROR
 
-def analizar_archivo(archivo: str):
+
+def analizar_archivo(archivo: str) -> ListaEnlazadaDobleCircular:
     """
     Lee un archivo preprocesado carácter por carácter,
-    agrupa los lexemas y los clasifica usando constantes y autómatas.
+    agrupa los lexemas, los clasifica y los almacena en una
+    ListaEnlazadaDobleCircular de tuplas (TipoToken, lexema).
+    Retorna la lista con todos los tokens encontrados.
     """
+    lista_tokens = ListaEnlazadaDobleCircular()
+
     if not os.path.exists(archivo):
         print(f"Error: El archivo '{archivo}' no existe.")
-        return
+        return lista_tokens
 
     print(f"Iniciando análisis léxico de '{archivo}'...\n")
 
     with open(archivo, 'r', encoding='utf-8') as f:
         contenido = f.read()
+
+    def registrar(tipo: TipoToken, lexema: str):
+        """Imprime el token y lo inserta al final de la lista enlazada."""
+        print(f"[{tipo.value}] -> {lexema}")
+        lista_tokens.insertar_final((tipo, lexema))
 
     i = 0
     while i < len(contenido):
@@ -60,18 +73,18 @@ def analizar_archivo(archivo: str):
                 buffer += contenido[i]
                 i += 1
             if i < len(contenido):
-                buffer += contenido[i] # Agregar la comilla de cierre
+                buffer += contenido[i]  # Agregar la comilla de cierre
                 i += 1
-            print(f"[{TipoToken.CADENA.value}] -> {buffer}")
+            registrar(TipoToken.CADENA, buffer)
             continue
 
         # 3. Símbolos de Agrupación y Puntuación
         if c in '({[':
-            print(f"[{TipoToken.SIMBOLO_APERTURA.value}] -> {c}")
+            registrar(TipoToken.SIMBOLO_APERTURA, c)
             i += 1
             continue
         if c in ')}]':
-            print(f"[{TipoToken.SIMBOLO_CIERRE.value}] -> {c}")
+            registrar(TipoToken.SIMBOLO_CIERRE, c)
             i += 1
             continue
         # El '.' puede ser puntuación O inicio de un número real (ej. .50)
@@ -83,69 +96,65 @@ def analizar_archivo(archivo: str):
                 while i < len(contenido) and contenido[i].isdigit():
                     buffer += contenido[i]
                     i += 1
-                tipo = clasificar_token(buffer)
-                print(f"[{tipo.value}] -> {buffer}")
+                registrar(clasificar_token(buffer), buffer)
                 continue
-            print(f"[{TipoToken.SIMBOLO_PUNTUACION.value}] -> {c}")
+            registrar(TipoToken.SIMBOLO_PUNTUACION, c)
             i += 1
             continue
         if c in ';,:':
-            print(f"[{TipoToken.SIMBOLO_PUNTUACION.value}] -> {c}")
+            registrar(TipoToken.SIMBOLO_PUNTUACION, c)
             i += 1
             continue
 
         # 4. Operadores (pueden ser de 1 o 2 caracteres)
         if c in '+-*/<>=!&|':
             op_str = c
-            
+
             # Verificar si el siguiente caracter forma un operador compuesto (ej. >=, ==, **)
             if i + 1 < len(contenido):
-                c_next = contenido[i+1]
+                c_next = contenido[i + 1]
                 op_doble = c + c_next
-                # Validamos si es una combinación válida iterando sobre los valores posibles
                 es_valido = any(op_doble == op.value for op in Operador) or op_doble == "="
-                
-                # Excepción especial para asignación u operadores que falten en el Enum
-                if op_doble == "==" or op_doble == "!=" or op_doble == "<=" or op_doble == ">=" or op_doble == "**":
+
+                if op_doble in ("==", "!=", "<=", ">=", "**"):
                     es_valido = True
 
                 if es_valido:
                     op_str = op_doble
                     i += 1
 
-            tipo_op = clasificar_operador(op_str)
-            print(f"[{tipo_op.value}] -> {op_str}")
+            registrar(clasificar_operador(op_str), op_str)
             i += 1
             continue
 
         # 5. Palabras Reservadas, IDs, Números
         if c.isalnum() or c == '_':
             buffer = ""
-            
-            # Repetir lectura hasta encontrar un delimitador que parezca de otro tipo
+
+            # Repetir lectura hasta encontrar un delimitador
             while i < len(contenido):
                 cc = contenido[i]
-                # Los delimitadores incluyen espacios, simbolos especiales y operadores
-                if cc.isspace() or cc in '({[ ]});,.:"'+'+-*/<>=!&|':
+                if cc.isspace() or cc in '({[ ]});,.:\"' + '+-*/<>=!&|':
                     # Permitir puntos solo si estamos ante un número real (ej. 3.14)
-                    if cc == '.' and buffer.isdigit() and (i + 1 < len(contenido) and contenido[i+1].isdigit()):
+                    if cc == '.' and buffer.isdigit() and (i + 1 < len(contenido) and contenido[i + 1].isdigit()):
                         buffer += cc
                         i += 1
                         continue
-                    break # Salir si encontramos el delimitador real
-                
+                    break  # Salir si encontramos el delimitador real
+
                 buffer += cc
                 i += 1
-            
-            tipo = clasificar_token(buffer)
-            print(f"[{tipo.value}] -> {buffer}")
+
+            registrar(clasificar_token(buffer), buffer)
             continue
 
         # 6. Cualquier otro carácter no reconocido será tratado como error
-        print(f"[{TipoToken.ERROR.value}] -> {c}")
+        registrar(TipoToken.ERROR, c)
         i += 1
-    
+
     print("Análisis léxico finalizado.")
+    return lista_tokens
+
 
 if __name__ == '__main__':
     import sys
