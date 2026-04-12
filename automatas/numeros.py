@@ -40,7 +40,8 @@ def validar_numero_real(cadena: str) -> bool:
         
     entera, decimal = partes
     
-    if not entera or not decimal:
+    # Permite parte entera vacía (ej. .50) pero la decimal siempre debe existir
+    if not decimal:
         return False
         
     for char in entera:

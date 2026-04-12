@@ -9,10 +9,10 @@ def clasificar_token(lexema: str) -> TipoToken:
     """Clasifica un lexema alfanumérico en Palabra Reservada, ID o Número"""
     if validar_palabra_reservada(lexema):
         return TipoToken.PALABRA_RESERVADA
-    if validar_numero(lexema):
-        return TipoToken.NUMERO_ENTERO
     if validar_numero_real(lexema):
         return TipoToken.NUMERO_REAL
+    if validar_numero(lexema):
+        return TipoToken.NUMERO_ENTERO
     if validar_id(lexema):
         return TipoToken.ID
     return TipoToken.ERROR
@@ -74,7 +74,22 @@ def analizar_archivo(archivo: str):
             print(f"[{TipoToken.SIMBOLO_CIERRE.value}] -> {c}")
             i += 1
             continue
-        if c in ';,.:':
+        # El '.' puede ser puntuación O inicio de un número real (ej. .50)
+        if c == '.':
+            if i + 1 < len(contenido) and contenido[i + 1].isdigit():
+                # Tratar como inicio de número real: acumular ".digits"
+                buffer = "."
+                i += 1
+                while i < len(contenido) and contenido[i].isdigit():
+                    buffer += contenido[i]
+                    i += 1
+                tipo = clasificar_token(buffer)
+                print(f"[{tipo.value}] -> {buffer}")
+                continue
+            print(f"[{TipoToken.SIMBOLO_PUNTUACION.value}] -> {c}")
+            i += 1
+            continue
+        if c in ';,:':
             print(f"[{TipoToken.SIMBOLO_PUNTUACION.value}] -> {c}")
             i += 1
             continue
